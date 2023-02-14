@@ -59,25 +59,25 @@ namespace Skyline_Project_PDFparser
 
             // The regex patterns
             string outerFolder = @"\b(\d+)\s+([a-z][A-Za-z]*)\b";
-            string innerFolder = @"(\d+\.\d+)\s+([a-z][A-Za-z]*)\b";
+            string innerFolder = @"(\d+)\.(\d+)\s+((TypeReference|CommandReference))\b";
             string generatedClass = @"(\d+\.\d+\.\d+)\s(\w+)";
             //rtbIspis.Document.Blocks.Clear();
             PdfReader reader = new PdfReader(filePath);
             PdfDocument pdfDoc = new PdfDocument(reader);
 
             // Iterate through all the pages of the PDF
-            for (int i = 1; i <= 5; i++)
+            for (int i = 1; i <= pdfDoc.GetNumberOfPages(); i++)
             {
                 ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
                 string pageContent = PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(i), strategy);
                 //rtbIspis.Document.Blocks.Add(new Paragraph(new Run(pageContent)));
 
-                MatchCollection matches1 = Regex.Matches(pageContent, outerFolder);
-                MatchCollection matches2 = Regex.Matches(pageContent, innerFolder);
+                MatchCollection matchesOuter = Regex.Matches(pageContent, outerFolder);
+                MatchCollection matchesInner = Regex.Matches(pageContent, innerFolder);
                 //MatchCollection matches3 = Regex.Matches(pageText, generatedClass);
-                if (matches1.Count > 0)
+                if (matchesOuter.Count > 0)
                 {
-                    foreach (Match match in matches1)
+                    foreach (Match match in matchesOuter)
                     {
 
                         string outerFolderPath = System.IO.Path.Combine(outputFolderPath, match.Groups[2].Value);
@@ -85,20 +85,21 @@ namespace Skyline_Project_PDFparser
                         {
                             Directory.CreateDirectory(outerFolderPath);
                         }
-                        foreach (Match match1 in matches2)
+                        foreach (Match match1 in matchesInner)
                         {
-                            var word = match1.Groups[2].Value;
-                            if (word == "TypeReference")
+                           
+                            var word = match1.Groups[3].Value;
+                            if (word == "TypeReference" && match.Groups[1].Value == match1.Groups[1].Value)
                             {
-                                string innerFolderPath = System.IO.Path.Combine(outerFolderPath, "Type");
+                                string innerFolderPath = System.IO.Path.Combine(outerFolderPath, match1.Groups[3].Value);
                                 if (!Directory.Exists(innerFolderPath))
                                 {
                                     Directory.CreateDirectory(innerFolderPath);
                                 }
-                            }
-                            else if (word == "CommandReference")
+                            } 
+                            else if (word == "CommandReference" && match.Groups[1].Value == match1.Groups[1].Value)
                             {
-                                string innerFolderPath = System.IO.Path.Combine(outerFolderPath, "Command");
+                                string innerFolderPath = System.IO.Path.Combine(outerFolderPath, match1.Groups[3].Value);
                                 if (!Directory.Exists(innerFolderPath))
                                 {
                                     Directory.CreateDirectory(innerFolderPath);
