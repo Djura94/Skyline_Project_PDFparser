@@ -1,6 +1,9 @@
 ﻿using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -60,7 +63,7 @@ namespace Skyline_Project_PDFparser
             // The regex patterns
             string outerFolder = @"\b(\d+)\s+([a-z][A-Za-z]*)\b";
             string innerFolder = @"(\d+)\.(\d+)\s+((TypeReference|CommandReference))\b";
-            string generatedClass = @"(\d+\.\d+\.\d+)\s(\w+)";
+            string generatedClass = @"\b(\d+)\.(\d+)\.(\d+)\s+(.*[a-zA-Z])\b";
             //rtbIspis.Document.Blocks.Clear();
             PdfReader reader = new PdfReader(filePath);
             PdfDocument pdfDoc = new PdfDocument(reader);
@@ -70,11 +73,11 @@ namespace Skyline_Project_PDFparser
             {
                 ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
                 string pageContent = PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(i), strategy);
-                //rtbIspis.Document.Blocks.Add(new Paragraph(new Run(pageContent)));
+                rtbIspis.Document.Blocks.Add(new Paragraph(new Run(pageContent)));
 
                 MatchCollection matchesOuter = Regex.Matches(pageContent, outerFolder);
                 MatchCollection matchesInner = Regex.Matches(pageContent, innerFolder);
-                //MatchCollection matches3 = Regex.Matches(pageText, generatedClass);
+                MatchCollection matchesClass = Regex.Matches(pageContent, generatedClass);
                 if (matchesOuter.Count > 0)
                 {
                     foreach (Match match in matchesOuter)
@@ -96,6 +99,33 @@ namespace Skyline_Project_PDFparser
                                 {
                                     Directory.CreateDirectory(innerFolderPath);
                                 }
+
+                                //Namespace generation
+                                NamespaceDeclarationSyntax ns = SyntaxFactory.NamespaceDeclaration(
+                                SyntaxFactory.IdentifierName(match.Groups[2].Value + "." + match1.Groups[3].Value))
+                                .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
+                               
+                                foreach (Match match2 in matchesClass)
+                                {
+                                    //Class declaration
+                                    ClassDeclarationSyntax cls = SyntaxFactory.ClassDeclaration(match2.Groups[4].Value)
+                                    .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>());
+                                    ns = ns.AddMembers(cls);
+                                    if (match1.Groups[1].Value == match2.Groups[1].Value && match1.Groups[2].Value == match2.Groups[2].Value)
+                                    {
+                                       
+
+
+                                        string className = cls.Identifier.ValueText + ".cs";
+                                        
+
+                                        string classFolderPath = System.IO.Path.Combine(innerFolderPath, className);
+                                        if (!File.Exists(classFolderPath))
+                                        {
+                                            File.WriteAllText(classFolderPath,ns.ToFullString());
+                                        }
+                                    }
+                                }
                             } 
                             else if (word == "CommandReference" && match.Groups[1].Value == match1.Groups[1].Value)
                             {
@@ -103,6 +133,32 @@ namespace Skyline_Project_PDFparser
                                 if (!Directory.Exists(innerFolderPath))
                                 {
                                     Directory.CreateDirectory(innerFolderPath);
+                                }
+
+
+                                //Namespace generation
+                                NamespaceDeclarationSyntax ns = SyntaxFactory.NamespaceDeclaration(
+                                SyntaxFactory.IdentifierName(match.Groups[2].Value + "." + match1.Groups[3].Value))
+                                .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
+
+                                foreach (Match match2 in matchesClass)
+                                {
+                                    //Class declaration
+                                    ClassDeclarationSyntax cls = SyntaxFactory.ClassDeclaration(match2.Groups[4].Value)
+                                        .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>());
+                                    ns = ns.AddMembers(cls);
+                                    
+                                    if (match1.Groups[1].Value == match2.Groups[1].Value && match1.Groups[2].Value == match2.Groups[2].Value)
+                                    {
+                                                                                
+                                        string className = cls.Identifier.ValueText + ".cs";
+                                                                                
+                                        string classFolderPath = System.IO.Path.Combine(innerFolderPath, className);
+                                        if (!File.Exists(classFolderPath))
+                                        {
+                                            File.WriteAllText(classFolderPath, ns.ToFullString());
+                                        }
+                                    }
                                 }
                             }
 

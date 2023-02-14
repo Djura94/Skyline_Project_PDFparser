@@ -10,6 +10,13 @@
         <Button x:Name="btnBrowse" Content="Browse" HorizontalAlignment="Left" Margin="71,0,0,0" VerticalAlignment="Center" Height="47" Width="138" Click="btnBrowse_Click"/>
         <Button x:Name="btnParse" Content="Parse" HorizontalAlignment="Left" Margin="315,300,0,0" VerticalAlignment="Top" Width="138" Height="47" Click="btnParse_Click"/>
         <TextBox x:Name="tbPath" HorizontalAlignment="Left" Margin="235,0,0,0" TextWrapping="Wrap" Text="" VerticalAlignment="Center" Width="458" Height="47"/>
+        <RichTextBox x:Name="rtbIspis" Margin="0,10,0,316" ScrollViewer.CanContentScroll="True">
+            <FlowDocument>
+                <Paragraph>
+                    <Run Text="RichTextBox"/>
+                </Paragraph>
+            </FlowDocument>
+        </RichTextBox>
 
     </Grid>
 </Window>
