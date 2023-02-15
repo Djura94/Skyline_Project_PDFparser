@@ -55,6 +55,7 @@ namespace Skyline_Project_PDFparser
 
         private void btnParse_Click(object sender, RoutedEventArgs e)
         {
+            //Getting the PDF path and creating the base folder
             string filePath = tbPath.Text;
             string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
             string outputFolderPath = System.IO.Path.Combine(desktopPath, "example");
@@ -76,9 +77,11 @@ namespace Skyline_Project_PDFparser
                 pageContent[i - 1] = PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(i), strategy); // store extracted text in array
             }
 
-
+            //Going through pageContent and making the necessary folders,subfolders and classes 
             for (int i = 1; i < pdfDoc.GetNumberOfPages(); i++)
             {
+
+                //Regex for matching key sentences
                 MatchCollection matchesOuter = Regex.Matches(pageContent[i-1], outerFolder);
                 MatchCollection matchesInner = Regex.Matches(pageContent[i-1], innerFolder);
                 MatchCollection matchesClass = Regex.Matches(pageContent[i-1], generatedClass);
@@ -86,7 +89,7 @@ namespace Skyline_Project_PDFparser
                 {
                     foreach (Match match in matchesOuter)
                     {
-
+                        //Creating folders
                         string outerFolderPath = System.IO.Path.Combine(outputFolderPath, match.Groups[2].Value);
                         if (!Directory.Exists(outerFolderPath))
                         {
@@ -96,6 +99,8 @@ namespace Skyline_Project_PDFparser
                         {
 
                             var word = match1.Groups[3].Value;
+
+                            //If statement to determine do we need to create Command or Type reference folder or both
                             if (word == "TypeReference" && match.Groups[1].Value == match1.Groups[1].Value)
                             {
                                 string innerFolderPath = System.IO.Path.Combine(outerFolderPath, match1.Groups[3].Value);
@@ -113,7 +118,7 @@ namespace Skyline_Project_PDFparser
                                 {
                                     //Class declaration
                                     ClassDeclarationSyntax cls = SyntaxFactory.ClassDeclaration(match2.Groups[4].Value)
-                                    .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>());
+                                    .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
                                     ns = ns.AddMembers(cls);
                                     if (match1.Groups[1].Value == match2.Groups[1].Value && match1.Groups[2].Value == match2.Groups[2].Value)
                                     {
@@ -149,7 +154,7 @@ namespace Skyline_Project_PDFparser
                                 {
                                     //Class declaration
                                     ClassDeclarationSyntax cls = SyntaxFactory.ClassDeclaration(match2.Groups[4].Value)
-                                        .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>());
+                                        .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
                                     ns = ns.AddMembers(cls);
 
                                     if (match1.Groups[1].Value == match2.Groups[1].Value && match1.Groups[2].Value == match2.Groups[2].Value)
