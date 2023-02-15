@@ -61,23 +61,27 @@ namespace Skyline_Project_PDFparser
 
 
             // The regex patterns
-            string outerFolder = @"\b(\d+)\s+([a-z][A-Za-z]*)\b";
+            string outerFolder = @"\b(?!0)(\d+)\s+((?!ipGateway|struct)[a-z][A-Za-z]*)\b"; //Hardcoded exlusions of ipGateway amd struct
             string innerFolder = @"(\d+)\.(\d+)\s+((TypeReference|CommandReference))\b";
-            string generatedClass = @"\b(\d+)\.(\d+)\.(\d+)\s+(.*[a-zA-Z])\b";
+            string generatedClass = @"\b(\d+)\.(\d+)\.(\d+)(?:\s+)?((?!.*\.(?:Response|Request)\b).*[a-zA-Z])\b";
             //rtbIspis.Document.Blocks.Clear();
             PdfReader reader = new PdfReader(filePath);
             PdfDocument pdfDoc = new PdfDocument(reader);
 
             // Iterate through all the pages of the PDF
+            string[] pageContent = new string[pdfDoc.GetNumberOfPages()]; // create array with correct size
+            ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
             for (int i = 1; i <= pdfDoc.GetNumberOfPages(); i++)
             {
-                ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
-                string pageContent = PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(i), strategy);
-                rtbIspis.Document.Blocks.Add(new Paragraph(new Run(pageContent)));
+                pageContent[i - 1] = PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(i), strategy); // store extracted text in array
+            }
 
-                MatchCollection matchesOuter = Regex.Matches(pageContent, outerFolder);
-                MatchCollection matchesInner = Regex.Matches(pageContent, innerFolder);
-                MatchCollection matchesClass = Regex.Matches(pageContent, generatedClass);
+
+            for (int i = 1; i < pdfDoc.GetNumberOfPages(); i++)
+            {
+                MatchCollection matchesOuter = Regex.Matches(pageContent[i-1], outerFolder);
+                MatchCollection matchesInner = Regex.Matches(pageContent[i-1], innerFolder);
+                MatchCollection matchesClass = Regex.Matches(pageContent[i-1], generatedClass);
                 if (matchesOuter.Count > 0)
                 {
                     foreach (Match match in matchesOuter)
@@ -90,7 +94,7 @@ namespace Skyline_Project_PDFparser
                         }
                         foreach (Match match1 in matchesInner)
                         {
-                           
+
                             var word = match1.Groups[3].Value;
                             if (word == "TypeReference" && match.Groups[1].Value == match1.Groups[1].Value)
                             {
@@ -104,7 +108,7 @@ namespace Skyline_Project_PDFparser
                                 NamespaceDeclarationSyntax ns = SyntaxFactory.NamespaceDeclaration(
                                 SyntaxFactory.IdentifierName(match.Groups[2].Value + "." + match1.Groups[3].Value))
                                 .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
-                               
+
                                 foreach (Match match2 in matchesClass)
                                 {
                                     //Class declaration
@@ -113,20 +117,20 @@ namespace Skyline_Project_PDFparser
                                     ns = ns.AddMembers(cls);
                                     if (match1.Groups[1].Value == match2.Groups[1].Value && match1.Groups[2].Value == match2.Groups[2].Value)
                                     {
-                                       
+
 
 
                                         string className = cls.Identifier.ValueText + ".cs";
-                                        
+
 
                                         string classFolderPath = System.IO.Path.Combine(innerFolderPath, className);
                                         if (!File.Exists(classFolderPath))
                                         {
-                                            File.WriteAllText(classFolderPath,ns.ToFullString());
+                                            File.WriteAllText(classFolderPath, ns.ToFullString());
                                         }
                                     }
                                 }
-                            } 
+                            }
                             else if (word == "CommandReference" && match.Groups[1].Value == match1.Groups[1].Value)
                             {
                                 string innerFolderPath = System.IO.Path.Combine(outerFolderPath, match1.Groups[3].Value);
@@ -147,12 +151,12 @@ namespace Skyline_Project_PDFparser
                                     ClassDeclarationSyntax cls = SyntaxFactory.ClassDeclaration(match2.Groups[4].Value)
                                         .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>());
                                     ns = ns.AddMembers(cls);
-                                    
+
                                     if (match1.Groups[1].Value == match2.Groups[1].Value && match1.Groups[2].Value == match2.Groups[2].Value)
                                     {
-                                                                                
+
                                         string className = cls.Identifier.ValueText + ".cs";
-                                                                                
+
                                         string classFolderPath = System.IO.Path.Combine(innerFolderPath, className);
                                         if (!File.Exists(classFolderPath))
                                         {
