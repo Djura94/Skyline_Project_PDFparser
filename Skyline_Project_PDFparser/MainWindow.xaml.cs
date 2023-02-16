@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -20,6 +21,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using static iText.StyledXmlParser.Jsoup.Select.Evaluator;
 
 namespace Skyline_Project_PDFparser
 {
@@ -109,19 +111,25 @@ namespace Skyline_Project_PDFparser
                                     Directory.CreateDirectory(innerFolderPath);
                                 }
 
-                                //Namespace generation
-                                NamespaceDeclarationSyntax ns = SyntaxFactory.NamespaceDeclaration(
-                                SyntaxFactory.IdentifierName(match.Groups[2].Value + "." + match1.Groups[3].Value))
-                                .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
+
 
                                 foreach (Match match2 in matchesClass)
                                 {
-                                    //Class declaration
-                                    ClassDeclarationSyntax cls = SyntaxFactory.ClassDeclaration(match2.Groups[4].Value)
-                                    .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
-                                    ns = ns.AddMembers(cls);
+
+
+
                                     if (match1.Groups[1].Value == match2.Groups[1].Value && match1.Groups[2].Value == match2.Groups[2].Value)
                                     {
+                                        //Namespace generation
+                                        NamespaceDeclarationSyntax ns = SyntaxFactory.NamespaceDeclaration(
+                                        SyntaxFactory.IdentifierName(match.Groups[2].Value + ".Type"))
+                                        .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
+
+                                        //Class declaration
+                                        var classModifiers = SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword));
+                                        ClassDeclarationSyntax cls = SyntaxFactory.ClassDeclaration(match2.Groups[4].Value)
+                                        .WithModifiers(classModifiers).NormalizeWhitespace();
+                                        ns = ns.AddMembers(cls);
 
 
 
@@ -145,21 +153,54 @@ namespace Skyline_Project_PDFparser
                                 }
 
 
-                                //Namespace generation
-                                NamespaceDeclarationSyntax ns = SyntaxFactory.NamespaceDeclaration(
-                                SyntaxFactory.IdentifierName(match.Groups[2].Value + "." + match1.Groups[3].Value))
-                                .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
+ 
 
                                 foreach (Match match2 in matchesClass)
                                 {
-                                    //Class declaration
-                                    ClassDeclarationSyntax cls = SyntaxFactory.ClassDeclaration(match2.Groups[4].Value)
-                                        .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
-                                    ns = ns.AddMembers(cls);
+
 
                                     if (match1.Groups[1].Value == match2.Groups[1].Value && match1.Groups[2].Value == match2.Groups[2].Value)
                                     {
 
+                                        //Namespace generation
+                                        NamespaceDeclarationSyntax ns = SyntaxFactory.NamespaceDeclaration(
+                                        SyntaxFactory.IdentifierName(match.Groups[2].Value + ".Command"))
+                                        .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
+
+                                        //Class declaration
+                                        var classModifiers = SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword));
+
+                                        // Define the class names
+                                        var requestClassName = "Request";
+                                        var responseClassName = "Response";
+
+                                        // Create the base types for the classes
+                                        var requestBaseType = SyntaxFactory.ParseName("ApiRequest<Request, Response>");
+                                        var responseBaseType = SyntaxFactory.ParseName("ApiResultResponse<object>");
+
+                                        // Create the Request class
+                                        var requestClass = SyntaxFactory.ClassDeclaration(requestClassName)
+                                            .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword)))
+                                            .WithBaseList(SyntaxFactory.BaseList(SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(SyntaxFactory.SimpleBaseType(requestBaseType)))).NormalizeWhitespace();
+
+                                        // Create the Response class
+                                        var responseClass = SyntaxFactory.ClassDeclaration(responseClassName)
+                                            .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword)))
+                                            .WithBaseList(SyntaxFactory.BaseList(SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(SyntaxFactory.SimpleBaseType(responseBaseType)))).NormalizeWhitespace();
+
+                                        ClassDeclarationSyntax cls = SyntaxFactory.ClassDeclaration(match2.Groups[4].Value)
+                                        .WithModifiers(SyntaxFactory.TokenList(
+                                       SyntaxFactory.Token(SyntaxKind.PublicKeyword),
+                                          SyntaxFactory.Token(SyntaxKind.StaticKeyword)))
+                                             .AddMembers(requestClass, responseClass).NormalizeWhitespace();
+
+
+                                        // Generate the syntax tree
+                                        var tree = SyntaxFactory.CompilationUnit()
+                                            .AddMembers(cls)
+                                            .NormalizeWhitespace();
+
+                                        ns = ns.AddMembers(cls);
                                         string className = cls.Identifier.ValueText + ".cs";
 
                                         string classFolderPath = System.IO.Path.Combine(innerFolderPath, className);
