@@ -8,20 +8,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using static iText.StyledXmlParser.Jsoup.Select.Evaluator;
 
 namespace Skyline_Project_PDFparser
 {
@@ -30,6 +18,14 @@ namespace Skyline_Project_PDFparser
     /// </summary>
     public partial class MainWindow : Window
     {
+        string filePath = string.Empty;
+        PdfReader reader = null;
+        PdfDocument pdfDoc = null;
+        string[] pageContent = null;
+        string startString = string.Empty;
+        string endString = string.Empty;
+        private bool isEndOfFile = false;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -58,7 +54,7 @@ namespace Skyline_Project_PDFparser
         private void btnParse_Click(object sender, RoutedEventArgs e)
         {
             //Getting the PDF path and creating the base folder
-            string filePath = tbPath.Text;
+            filePath = tbPath.Text;
             string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
             string outputFolderPath = System.IO.Path.Combine(desktopPath, "example");
 
@@ -66,17 +62,25 @@ namespace Skyline_Project_PDFparser
             // The regex patterns
             string outerFolder = @"\b(?!0)(\d+)\s+((?!ipGateway|struct)[a-z][A-Za-z]*)\b"; //Hardcoded exlusions of ipGateway amd struct
             string innerFolder = @"(\d+)\.(\d+)\s+((TypeReference|CommandReference))\b";
-            string generatedClass = @"\b(\d+)\.(\d+)\.(\d+)(?:\s+)?((?!.*\.(?:Response|Request)\b).*[a-zA-Z])\b";
-            //rtbIspis.Document.Blocks.Clear();
-            PdfReader reader = new PdfReader(filePath);
-            PdfDocument pdfDoc = new PdfDocument(reader);
+            string generatedClass = @"\b(\d+)\.(\d+)\.(\d+)(?:\s+)?(.*[a-zA-Z])\b";
+
+            reader = new PdfReader(filePath);
+            pdfDoc = new PdfDocument(reader);
 
             // Iterate through all the pages of the PDF
-            string[] pageContent = new string[pdfDoc.GetNumberOfPages()]; // create array with correct size
+            pageContent = new string[pdfDoc.GetNumberOfPages()]; // create array with correct size
             ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
+
+            // create an array to hold the text blocks
+            List<string> textBlocks = new List<string>();
+
+
+
             for (int i = 1; i <= pdfDoc.GetNumberOfPages(); i++)
             {
+
                 pageContent[i - 1] = PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(i), strategy); // store extracted text in array
+
             }
 
             //Going through pageContent and making the necessary folders,subfolders and classes 
@@ -84,9 +88,9 @@ namespace Skyline_Project_PDFparser
             {
 
                 //Regex for matching key sentences
-                MatchCollection matchesOuter = Regex.Matches(pageContent[i-1], outerFolder);
-                MatchCollection matchesInner = Regex.Matches(pageContent[i-1], innerFolder);
-                MatchCollection matchesClass = Regex.Matches(pageContent[i-1], generatedClass);
+                MatchCollection matchesOuter = Regex.Matches(pageContent[pdfDoc.GetNumberOfPages() - 1], outerFolder);
+                MatchCollection matchesInner = Regex.Matches(pageContent[pdfDoc.GetNumberOfPages() - 1], innerFolder);
+                MatchCollection matchesClass = Regex.Matches(pageContent[pdfDoc.GetNumberOfPages() - 1], generatedClass);
                 if (matchesOuter.Count > 0)
                 {
                     foreach (Match match in matchesOuter)
@@ -115,11 +119,10 @@ namespace Skyline_Project_PDFparser
 
                                 foreach (Match match2 in matchesClass)
                                 {
-
-
-
                                     if (match1.Groups[1].Value == match2.Groups[1].Value && match1.Groups[2].Value == match2.Groups[2].Value)
                                     {
+                                        //string keyWordEnum = @"\b(enum|struct)\b";
+
                                         //Namespace generation
                                         NamespaceDeclarationSyntax ns = SyntaxFactory.NamespaceDeclaration(
                                         SyntaxFactory.IdentifierName(match.Groups[2].Value + ".Type"))
@@ -131,16 +134,56 @@ namespace Skyline_Project_PDFparser
                                         .WithModifiers(classModifiers).NormalizeWhitespace();
                                         ns = ns.AddMembers(cls);
 
+                                        //read current and next chapter, and text between them
+                                        startString = match2.Value.ToString();
 
+                                        if (startString.Contains("TsSettings"))
+                                        {
+                                            if (startString == string.Empty)
+                                            {
 
+                                            }
+                                        }
+                                        endString = string.Empty;
+                                        bool isfound = false;
+                                        foreach (Match item in matchesClass)
+                                        {
+                                            if (item.Value.ToString() == startString)
+                                            {
+                                                isfound = true;
+                                            }
+                                            if (isfound && item.Value.ToString() != startString)
+                                            {
+                                                endString = item.Value.ToString() + "\n";
+                                                string firstChar = endString[0].ToString();
+                                                if (!startString.StartsWith(firstChar))
+                                                {//check response and request if would be a error here 
+                                                    Match nextMatch = matchesOuter.Cast<Match>()
+                                                        .SkipWhile(m => m != match)
+                                                        .Skip(1)
+                                                        .FirstOrDefault();
+                                                    endString = nextMatch?.Value;
+                                                    if (match == matchesOuter[matchesOuter.Count - 1])
+                                                        isEndOfFile = true;
+                                                }
+
+                                                isfound = false;
+                                            }
+                                        }
+  
                                         string className = cls.Identifier.ValueText + ".cs";
 
 
                                         string classFolderPath = System.IO.Path.Combine(innerFolderPath, className);
                                         if (!File.Exists(classFolderPath))
                                         {
-                                            File.WriteAllText(classFolderPath, ns.ToFullString());
+                                            if (!match2.Value.ToString().Contains(".Response") && !match2.Value.ToString().Contains(".Request"))
+                                            {
+                                                PopulateType();
+                                                File.WriteAllText(classFolderPath, ns.ToFullString());
+                                            }                                                                                     
                                         }
+
                                     }
                                 }
                             }
@@ -153,12 +196,12 @@ namespace Skyline_Project_PDFparser
                                 }
 
 
- 
+
 
                                 foreach (Match match2 in matchesClass)
                                 {
 
-
+                                    //If statement which makes the C# files that are the Command type
                                     if (match1.Groups[1].Value == match2.Groups[1].Value && match1.Groups[2].Value == match2.Groups[2].Value)
                                     {
                                         string classFolderPath = System.IO.Path.Combine(innerFolderPath, match2.Groups[4].Value);
@@ -208,7 +251,7 @@ namespace Skyline_Project_PDFparser
                                             .AddParameterListParameters(
                                                 SyntaxFactory.Parameter(SyntaxFactory.Identifier("sessionId"))
                                                     .WithType(SyntaxFactory.ParseTypeName("Guid"))
- 
+
                                             )
                                             .WithInitializer(
                                                 SyntaxFactory.ConstructorInitializer(SyntaxKind.BaseConstructorInitializer)
@@ -252,7 +295,7 @@ namespace Skyline_Project_PDFparser
                                                 SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.ProtectedKeyword)))
                                                     .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
                                             ).NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.Comment("/// <summary>\r\n\t\t/// Gets the result\r\n\t\t/// </summary>\r"));
-                                            
+
 
                                         responseClass = responseClass.AddMembers(resultProperty);
 
@@ -286,7 +329,44 @@ namespace Skyline_Project_PDFparser
             pdfDoc.Close();
             reader.Close();
         }
+
+        private void PopulateType()
+        {
+            if (startString.Contains("SeamlessStatus"))
+            {
+                if (startString != string.Empty) { }
+            }
+            startString = startString + "\n";
+
+            int startIndex = pageContent[pdfDoc.GetNumberOfPages()-1].IndexOf(startString) + startString.Length;
+            int endIndex = pageContent[pdfDoc.GetNumberOfPages() - 1].IndexOf(endString, startIndex);
+
+            if (startIndex >= 0 && endIndex >= 0 && !isEndOfFile)
+            {
+                string extractedText = pageContent[pdfDoc.GetNumberOfPages() - 1].Substring(startIndex, endIndex - startIndex).Trim();
+
+                if (extractedText.Contains("enum"))
+                {
+                    //
+                }
+                else if (extractedText.Contains("empty struct"))
+                {
+                    //
+                }
+                else if (extractedText.Contains("struct"))
+                {
+                    //
+                }
+            }
+            else 
+            {
+                //end of document (endIndex = -1)
+                string extractedText = pageContent[pdfDoc.GetNumberOfPages() - 1].Substring(startIndex).Trim();
+            }
+        }
+
     }
 }
+
 
 
