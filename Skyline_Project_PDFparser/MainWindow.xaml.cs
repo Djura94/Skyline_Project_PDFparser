@@ -1,4 +1,6 @@
-﻿using iText.Kernel.Pdf;
+﻿using iText.Commons.Utils;
+using iText.Kernel.Geom;
+using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
 using Microsoft.CodeAnalysis;
@@ -25,6 +27,8 @@ namespace Skyline_Project_PDFparser
         string startString = string.Empty;
         string endString = string.Empty;
         private bool isEndOfFile = false;
+        NamespaceDeclarationSyntax ns = null;
+        ClassDeclarationSyntax cls = null;
 
         public MainWindow()
         {
@@ -70,10 +74,6 @@ namespace Skyline_Project_PDFparser
             // Iterate through all the pages of the PDF
             pageContent = new string[pdfDoc.GetNumberOfPages()]; // create array with correct size
             ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
-
-            // create an array to hold the text blocks
-            List<string> textBlocks = new List<string>();
-
 
 
             for (int i = 1; i <= pdfDoc.GetNumberOfPages(); i++)
@@ -121,38 +121,25 @@ namespace Skyline_Project_PDFparser
                                 {
                                     if (match1.Groups[1].Value == match2.Groups[1].Value && match1.Groups[2].Value == match2.Groups[2].Value)
                                     {
-                                        //string keyWordEnum = @"\b(enum|struct)\b";
 
                                         //Namespace generation
-                                        NamespaceDeclarationSyntax ns = SyntaxFactory.NamespaceDeclaration(
+                                         ns = SyntaxFactory.NamespaceDeclaration(
                                         SyntaxFactory.IdentifierName(match.Groups[2].Value + ".Type"))
                                         .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
 
-                                        //Class declaration
-                                        var classModifiers = SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword));
-                                        ClassDeclarationSyntax cls = SyntaxFactory.ClassDeclaration(match2.Groups[4].Value)
-                                        .WithModifiers(classModifiers).NormalizeWhitespace();
-                                        ns = ns.AddMembers(cls);
+
 
                                         //read current and next chapter, and text between them
                                         startString = match2.Value.ToString();
-
-                                        if (startString.Contains("TsSettings"))
-                                        {
-                                            if (startString == string.Empty)
-                                            {
-
-                                            }
-                                        }
                                         endString = string.Empty;
-                                        bool isfound = false;
+                                        bool isFound = false;
                                         foreach (Match item in matchesClass)
                                         {
                                             if (item.Value.ToString() == startString)
                                             {
-                                                isfound = true;
+                                                isFound = true;
                                             }
-                                            if (isfound && item.Value.ToString() != startString)
+                                            if (isFound && item.Value.ToString() != startString)
                                             {
                                                 endString = item.Value.ToString() + "\n";
                                                 string firstChar = endString[0].ToString();
@@ -167,11 +154,11 @@ namespace Skyline_Project_PDFparser
                                                         isEndOfFile = true;
                                                 }
 
-                                                isfound = false;
+                                                isFound = false;
                                             }
                                         }
-  
-                                        string className = cls.Identifier.ValueText + ".cs";
+
+                                        string className = match2.Groups[4].Value + ".cs";
 
 
                                         string classFolderPath = System.IO.Path.Combine(innerFolderPath, className);
@@ -179,9 +166,10 @@ namespace Skyline_Project_PDFparser
                                         {
                                             if (!match2.Value.ToString().Contains(".Response") && !match2.Value.ToString().Contains(".Request"))
                                             {
-                                                PopulateType();
+                                                //Method that populates TypeReference files
+                                                PopulateType(match2.Groups[4].Value);
                                                 File.WriteAllText(classFolderPath, ns.ToFullString());
-                                            }                                                                                     
+                                            }
                                         }
 
                                     }
@@ -330,41 +318,145 @@ namespace Skyline_Project_PDFparser
             reader.Close();
         }
 
-        private void PopulateType()
+        private void PopulateType(string ime)
         {
-            if (startString.Contains("SeamlessStatus"))
-            {
-                if (startString != string.Empty) { }
-            }
+
             startString = startString + "\n";
 
-            int startIndex = pageContent[pdfDoc.GetNumberOfPages()-1].IndexOf(startString) + startString.Length;
+            int startIndex = pageContent[pdfDoc.GetNumberOfPages() - 1].IndexOf(startString) + startString.Length;
             int endIndex = pageContent[pdfDoc.GetNumberOfPages() - 1].IndexOf(endString, startIndex);
 
             if (startIndex >= 0 && endIndex >= 0 && !isEndOfFile)
             {
                 string extractedText = pageContent[pdfDoc.GetNumberOfPages() - 1].Substring(startIndex, endIndex - startIndex).Trim();
 
-                if (extractedText.Contains("enum"))
+                if (extractedText.Contains("enum\n"))   //Works, but it needs to be polished
                 {
-                    //
-                }
-                else if (extractedText.Contains("empty struct"))
-                {
-                    //
-                }
-                else if (extractedText.Contains("struct"))
-                {
-                    //
-                }
-            }
-            else 
-            {
-                //end of document (endIndex = -1)
-                string extractedText = pageContent[pdfDoc.GetNumberOfPages() - 1].Substring(startIndex).Trim();
-            }
-        }
+                    string searchTerm = "enum\n";
+                    int enumIndex = extractedText.IndexOf(searchTerm);
 
+                    if (enumIndex != -1)
+                    {
+                        string textBeforeEnum = extractedText.Substring(0, enumIndex);
+                        string textAfterEnum = extractedText.Substring(enumIndex + searchTerm.Length);
+
+                        Regex regex = new Regex("(•\\s+)(.+)");
+
+                        MatchCollection matches = regex.Matches(textAfterEnum);
+
+                        var documentation = SyntaxFactory.ParseLeadingTrivia(textBeforeEnum);
+
+                        //Create a class
+                        cls = SyntaxFactory.ClassDeclaration(ime)
+                            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword)).NormalizeWhitespace()
+                            .NormalizeWhitespace();
+
+                        // Create the enum
+                        var optionsEnum = SyntaxFactory.EnumDeclaration("Options")
+                            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                            .WithLeadingTrivia(documentation).NormalizeWhitespace()
+                            .NormalizeWhitespace();
+
+                        // Add the members to the enum
+                        foreach (Match match in matches)
+                        {
+                            var member = SyntaxFactory.EnumMemberDeclaration(match.Groups[2].Value)
+                                .WithAttributeLists(SyntaxFactory.SingletonList(
+                                    SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList(
+                                        SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("RawValue").NormalizeWhitespace()).NormalizeWhitespace()
+                                            .WithArgumentList(SyntaxFactory.AttributeArgumentList(
+                                                SyntaxFactory.SingletonSeparatedList(SyntaxFactory.AttributeArgument(
+                                                    SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression,
+                                                        SyntaxFactory.Literal(match.Groups[2].Value).NormalizeWhitespace()).NormalizeWhitespace()))).NormalizeWhitespace()).NormalizeWhitespace())).NormalizeWhitespace())).NormalizeWhitespace();
+
+                            optionsEnum = optionsEnum.AddMembers(member);
+                        }
+
+                        // Add the enum to the class
+                        cls = cls.AddMembers(optionsEnum).WithLeadingTrivia(documentation);
+
+
+                        // Generate the syntax tree
+                        var tree = SyntaxFactory.CompilationUnit()
+                            .AddMembers(cls)
+                            .NormalizeWhitespace();
+
+                        ns = ns.AddMembers(cls);
+
+
+                    }
+                }
+                else if (extractedText.Contains("emptystruct\n"))
+                {
+                    //
+                }
+                else if (extractedText.Contains("struct\n"))
+                {
+                    string searchTerm = "struct\n";
+                    int structIndex = extractedText.IndexOf(searchTerm);
+
+                    if (structIndex != -1)
+                    {
+                        string textBeforeStruct = extractedText.Substring(0, structIndex);
+                        string textAfterStruct = extractedText.Substring(structIndex + searchTerm.Length);
+
+                        string[] lines = textAfterStruct.Split(new[] {"\n"}, StringSplitOptions.None);
+
+                        string camelCase = @"\b(?!ipGateway)[a-z]+(?:[A-Z][a-z]+)*\b";
+
+
+                        for (int i = 0; i < lines.Length; i++)
+                        {
+                            if (Regex.Match(lines[i],camelCase).Success)
+                            {
+                                string naziv = lines[i];
+                                if(i==0)
+                                {
+                                    string tableType = lines[i + 1];
+                                    if (!Regex.Match(lines[i + 2], camelCase).Success)
+                                    { string description = lines[i + 2]; }
+                                }
+                                else if(i>0 && !Regex.Match(lines[i-1], camelCase).Success)
+                                {    
+                                    
+                                   string tableType = lines[i + 1];
+                                if(!Regex.Match(lines[i+2], camelCase).Success)
+                                {string description = lines[i + 2];}
+
+                                }
+
+
+
+                                
+                            }
+                        }
+                        
+                    }
+                }
+                else if (extractedText.Contains("variant\n"))
+                {
+                    //
+                }
+
+                /*else 
+                 {
+                     //end of document (endIndex = -1)
+                     int numPages = pdfDoc.GetNumberOfPages();
+                     PdfPage lastPage = pdfDoc.GetLastPage();
+                     Rectangle pageSize = lastPage.GetPageSize();
+                     startIndex = pageContent[pdfDoc.GetNumberOfPages() - 1].IndexOf(startString) + startString.Length;
+                     endIndex = (int)pageSize.GetTop();
+
+                     if (startString.Contains("SeamlessStatus"))
+                     {
+                         if (startString != string.Empty) { }
+                     }
+
+                     string extractedText = pageContent[pdfDoc.GetNumberOfPages() - 1].Substring(startIndex, endIndex - startIndex).Trim();
+                 }*/
+            }
+
+        }
     }
 }
 
