@@ -12,6 +12,8 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Markup;
+using static iText.Kernel.Pdf.Colorspace.PdfSpecialCs;
 
 namespace Skyline_Project_PDFparser
 {
@@ -29,6 +31,8 @@ namespace Skyline_Project_PDFparser
         private bool isEndOfFile = false;
         NamespaceDeclarationSyntax ns = null;
         ClassDeclarationSyntax cls = null;
+        string tableType=string.Empty;
+        string description= string.Empty;   
 
         public MainWindow()
         {
@@ -386,10 +390,6 @@ namespace Skyline_Project_PDFparser
 
                     }
                 }
-                else if (extractedText.Contains("emptystruct\n"))
-                {
-                    //
-                }
                 else if (extractedText.Contains("struct\n"))
                 {
                     string searchTerm = "struct\n";
@@ -400,39 +400,32 @@ namespace Skyline_Project_PDFparser
                         string textBeforeStruct = extractedText.Substring(0, structIndex);
                         string textAfterStruct = extractedText.Substring(structIndex + searchTerm.Length);
 
-                        string[] lines = textAfterStruct.Split(new[] {"\n"}, StringSplitOptions.None);
-
-                        string camelCase = @"\b(?!ipGateway)[a-z]+(?:[A-Z][a-z]+)*\b";
-
-
-                        for (int i = 0; i < lines.Length; i++)
+                        string[] dataArr = textAfterStruct.Split('\n');
+                        var result = new List<Dictionary<string, string>>();
+                        for (int i = 0; i < dataArr.Length; i += 3)
                         {
-                            if (Regex.Match(lines[i],camelCase).Success)
+                            string firstString = dataArr[i];
+                            string secondString = dataArr[i + 1];
+                            string thirdString = dataArr[i + 2];
+                            if (firstString == "ipGateway" && string.IsNullOrEmpty(secondString))
                             {
-                                string naziv = lines[i];
-                                if(i==0)
-                                {
-                                    string tableType = lines[i + 1];
-                                    if (!Regex.Match(lines[i + 2], camelCase).Success)
-                                    { string description = lines[i + 2]; }
-                                }
-                                else if(i>0 && !Regex.Match(lines[i-1], camelCase).Success)
-                                {    
-                                    
-                                   string tableType = lines[i + 1];
-                                if(!Regex.Match(lines[i+2], camelCase).Success)
-                                {string description = lines[i + 2];}
-
-                                }
-
-
-
-                                
+                                continue;
                             }
+                            result.Add(new Dictionary<string, string>
+                                    {
+                                        {"first_string", firstString},
+                                        {"second_string", secondString},
+                                        {"third_string", thirdString}
+                                    });
                         }
-                        
+
                     }
                 }
+                else if (extractedText.Contains("emptystruct\n"))
+                {
+                    //
+                }
+                
                 else if (extractedText.Contains("variant\n"))
                 {
                     //
@@ -457,6 +450,8 @@ namespace Skyline_Project_PDFparser
             }
 
         }
+
+
     }
 }
 
