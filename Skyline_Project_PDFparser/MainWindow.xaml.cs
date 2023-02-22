@@ -400,15 +400,19 @@ namespace Skyline_Project_PDFparser
                         string textBeforeStruct = extractedText.Substring(0, structIndex);
                         string textAfterStruct = extractedText.Substring(structIndex + searchTerm.Length);
                         string pattern = @"\d{2}\/\d{2}\/\d{4}\s+\d+";
-                        string specialCase = @"([A-Za-z]+)\s+([A-Za-z]+)";
+                        string specialCase = @"([A-Za-z0-9]+)\s+([A-Za-z]+)";
                         string multilineComment = @"([A-Za-z]+( [A-Za-z]+)+)";
 
 
                         string[] lines = textAfterStruct.Split('\n');
-                        
+                        string nameFile = string.Empty;
+                        string typeFile = string.Empty;
+                        string comment = string.Empty;
                         for (int i = 0; i < lines.Length; i++)
                         {
-                            string nameFile= lines[i];
+
+                            nameFile = lines[i];
+
                             if (nameFile == "ipGateway" || Regex.Match(nameFile, pattern).Success)
                                 continue;
                             if(Regex.Match(nameFile, specialCase).Success)
@@ -417,49 +421,74 @@ namespace Skyline_Project_PDFparser
                                 nameFile = names[0];
                                 typeFile = names[1];
                                 if (lines.Length == 1)
+                                {
+                                    PopulateStruct(nameFile, typeFile,comment);
                                     break;
+                                }
+                                PopulateStruct(nameFile, typeFile, comment);
                                 continue;
                             }
                             typeFile= lines[i+1];
-                            if (lines.Length>3 && lines[i+2].EndsWith("."))                 //Case for single line comment with dot
+                            if (Regex.Match(lines[i + 2], multilineComment).Success) //Multiline comment
                             {
-                                string comment= lines[i+2];
-                                i++;
-                                if (lines.Length == 3)                                      //table with only one element
-                                    break;
-                            }
-                            else if (Regex.Match(lines[i + 2], multilineComment).Success) //Multiline comment
-                            {
-                                string comment = lines[i + 2] + " " + lines[i + 3];
+                                comment = lines[i + 2] + " " + lines[i + 3];
                                 if (lines.Length == 4)                                      //table with only one element but two lined comment
-                                    break;
+                                {
+                                    PopulateStruct(nameFile, typeFile, comment);
+                                    break; 
+                                }
                                 i = i + 2;
+                            }
+
+                            else if (lines.Length>3 && lines[i+2].EndsWith("."))                 //Case for single line comment with dot
+                            {
+                                comment= lines[i+2];
+                                i++;
+                                if (lines.Length == 3)                                          //table with only one element
+                                {
+                                    PopulateStruct(nameFile, typeFile, comment);
+                                    break;
+                                }                                    
                             }
                             else if (Regex.Match(lines[i+2], pattern).Success && lines[i+3] == "ipGateway")      //Page break case
                             {
                                 if (Regex.Match(lines[i + 4], multilineComment).Success)
                                 {
-                                    string comment = lines[i + 4] + " " + lines[i + 5];
+                                    comment = lines[i + 4] + " " + lines[i + 5];
                                     i = i + 4;
                                 }
                                 else
                                 {
-                                    string comment = lines[i + 4];
-                                    i++;
+                                    comment = lines[i + 4];
+                                    i=i+3;
                                 }
                             }
                             else if (lines[i + 2].EndsWith(".") && lines.Length == 3)       //table with one element and one lined comment with dot
                             {
-                                string comment = lines[i + 2]; 
+                                comment = lines[i + 2];
+                                PopulateStruct(nameFile, typeFile, comment);
                                 break;
                             }
                             else if (!lines[i+2].EndsWith(".") && lines.Length==3)          //table with one lined comment without the dot
                             {
-                                string comment = lines[i+2];
+                                comment = lines[i + 2];
+                                PopulateStruct(nameFile, typeFile, comment);
                                 break;
+                            }
+                            else if (char.IsUpper(lines[i+2],0) && !lines[i+2].EndsWith("."))
+                            {
+                                comment = lines[i + 2];
+                                if (lines[i+2]=="Prioritylistofmappingrules-eachrulematchesexactlyonesourcecom-") //Hardcoded unique case in pdf file
+                                 {
+                                     comment = lines[i+2] + " " + lines[i+3];
+                                    PopulateStruct(nameFile, typeFile, comment);
+                                    break;
+                                 }  
+                                i++;
                             }
                         
                             i++;
+                            PopulateStruct(nameFile,typeFile,comment);
                         }
 
                     }
@@ -494,7 +523,11 @@ namespace Skyline_Project_PDFparser
 
         }
 
+        private void PopulateStruct(string fileName, string fileType, string comment)
+        {
 
+
+        }
     }
 }
 
