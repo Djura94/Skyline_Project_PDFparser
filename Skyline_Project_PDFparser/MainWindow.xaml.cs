@@ -1,6 +1,4 @@
-﻿using iText.Commons.Utils;
-using iText.Kernel.Geom;
-using iText.Kernel.Pdf;
+﻿using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
 using Microsoft.CodeAnalysis;
@@ -8,12 +6,12 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.Design.Serialization;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
-using System.Windows.Markup;
-using static iText.Kernel.Pdf.Colorspace.PdfSpecialCs;
 
 namespace Skyline_Project_PDFparser
 {
@@ -32,7 +30,8 @@ namespace Skyline_Project_PDFparser
         NamespaceDeclarationSyntax ns = null;
         ClassDeclarationSyntax cls = null;
         string tableType=string.Empty;
-        string description= string.Empty;   
+        string description= string.Empty;
+        string typeFile= string.Empty;  
 
         public MainWindow()
         {
@@ -78,14 +77,15 @@ namespace Skyline_Project_PDFparser
             // Iterate through all the pages of the PDF
             pageContent = new string[pdfDoc.GetNumberOfPages()]; // create array with correct size
             ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
-
+        
 
             for (int i = 1; i <= pdfDoc.GetNumberOfPages(); i++)
             {
 
-                pageContent[i - 1] = PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(i), strategy); // store extracted text in array
-
+                pageContent[i - 1] = PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(i),strategy); // store extracted text in array
+              
             }
+
 
             //Going through pageContent and making the necessary folders,subfolders and classes 
             for (int i = 1; i < pdfDoc.GetNumberOfPages(); i++)
@@ -399,24 +399,67 @@ namespace Skyline_Project_PDFparser
                     {
                         string textBeforeStruct = extractedText.Substring(0, structIndex);
                         string textAfterStruct = extractedText.Substring(structIndex + searchTerm.Length);
+                        string pattern = @"\d{2}\/\d{2}\/\d{4}\s+\d+";
+                        string specialCase = @"([A-Za-z]+)\s+([A-Za-z]+)";
+                        string multilineComment = @"([A-Za-z]+( [A-Za-z]+)+)";
 
-                        string[] dataArr = textAfterStruct.Split('\n');
-                        var result = new List<Dictionary<string, string>>();
-                        for (int i = 0; i < dataArr.Length; i += 3)
+
+                        string[] lines = textAfterStruct.Split('\n');
+                        
+                        for (int i = 0; i < lines.Length; i++)
                         {
-                            string firstString = dataArr[i];
-                            string secondString = dataArr[i + 1];
-                            string thirdString = dataArr[i + 2];
-                            if (firstString == "ipGateway" && string.IsNullOrEmpty(secondString))
+                            string nameFile= lines[i];
+                            if (nameFile == "ipGateway" || Regex.Match(nameFile, pattern).Success)
+                                continue;
+                            if(Regex.Match(nameFile, specialCase).Success)
                             {
+                                string[] names = nameFile.Split(' ');
+                                nameFile = names[0];
+                                typeFile = names[1];
+                                if (lines.Length == 1)
+                                    break;
                                 continue;
                             }
-                            result.Add(new Dictionary<string, string>
-                                    {
-                                        {"first_string", firstString},
-                                        {"second_string", secondString},
-                                        {"third_string", thirdString}
-                                    });
+                            typeFile= lines[i+1];
+                            if (lines.Length>3 && lines[i+2].EndsWith("."))                 //Case for single line comment with dot
+                            {
+                                string comment= lines[i+2];
+                                i++;
+                                if (lines.Length == 3)                                      //table with only one element
+                                    break;
+                            }
+                            else if (Regex.Match(lines[i + 2], multilineComment).Success) //Multiline comment
+                            {
+                                string comment = lines[i + 2] + " " + lines[i + 3];
+                                if (lines.Length == 4)                                      //table with only one element but two lined comment
+                                    break;
+                                i = i + 2;
+                            }
+                            else if (Regex.Match(lines[i+2], pattern).Success && lines[i+3] == "ipGateway")      //Page break case
+                            {
+                                if (Regex.Match(lines[i + 4], multilineComment).Success)
+                                {
+                                    string comment = lines[i + 4] + " " + lines[i + 5];
+                                    i = i + 4;
+                                }
+                                else
+                                {
+                                    string comment = lines[i + 4];
+                                    i++;
+                                }
+                            }
+                            else if (lines[i + 2].EndsWith(".") && lines.Length == 3)       //table with one element and one lined comment with dot
+                            {
+                                string comment = lines[i + 2]; 
+                                break;
+                            }
+                            else if (!lines[i+2].EndsWith(".") && lines.Length==3)          //table with one lined comment without the dot
+                            {
+                                string comment = lines[i+2];
+                                break;
+                            }
+                        
+                            i++;
                         }
 
                     }
