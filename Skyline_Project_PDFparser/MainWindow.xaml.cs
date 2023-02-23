@@ -28,7 +28,9 @@ namespace Skyline_Project_PDFparser
         ClassDeclarationSyntax cls = null;
         string tableType=string.Empty;
         string description= string.Empty;
-        string typeFile= string.Empty;  
+        string typeFile= string.Empty;
+        string docName= string.Empty;
+        string docVersion= string.Empty;
 
         public MainWindow()
         {
@@ -67,6 +69,7 @@ namespace Skyline_Project_PDFparser
             string outerFolder = @"\b(?!0)(\d+)\s+((?!ipGateway|struct)[a-z][A-Za-z]*)\b"; //Hardcoded exlusions of ipGateway amd struct
             string innerFolder = @"(\d+)\.(\d+)\s+((TypeReference|CommandReference))\b";
             string generatedClass = @"\b(\d+)\.(\d+)\.(\d+)(?:\s+)?(.*[a-zA-Z])\b";
+            string revision = @"Revision\s*:\s*(\d+\.\d+)";
 
             reader = new PdfReader(filePath);
             pdfDoc = new PdfDocument(reader);
@@ -82,6 +85,17 @@ namespace Skyline_Project_PDFparser
                 pageContent[i - 1] = PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(i),strategy); // store extracted text in array
               
             }
+
+            //Locating the title of the file and its version
+            string[] firstPage=pageContent[0].Split('\n');
+            for (int i = 0; i < firstPage.Length; i++)
+            {
+                docName = firstPage[0];
+                if (Regex.Match(firstPage[i], revision).Success)
+                    docVersion = Regex.Match(firstPage[i], revision).Groups[1].Value;
+            }
+
+            
             //Going through pageContent and making the necessary folders,subfolders and classes 
             for (int i = 1; i < pdfDoc.GetNumberOfPages(); i++)
             {
@@ -121,7 +135,7 @@ namespace Skyline_Project_PDFparser
 
                                         //Namespace generation
                                          ns = SyntaxFactory.NamespaceDeclaration(
-                                        SyntaxFactory.IdentifierName("AppearTV.X20.Api.Schema.Asi.V1_11." + match.Groups[2].Value + ".Type"))
+                                        SyntaxFactory.IdentifierName("AppearTV.X20.Api.Schema." + docName  +"."+"V"+docVersion+"." + match.Groups[2].Value + ".Type"))
                                         .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>()).NormalizeWhitespace();
 
                                         //read current and next chapter, and text between them
@@ -137,8 +151,7 @@ namespace Skyline_Project_PDFparser
                                             if (isFound && item.Value.ToString() != startString)
                                             {
                                                 endString = item.Value.ToString() + "\n";
-                                                string firstChar = endString[0].ToString();
-                                                if (!startString.StartsWith(firstChar))
+                                                if (startString.Substring(0,2)!=endString.Substring(0,2))
                                                 {//check response and request if would be a error here 
                                                     Match nextMatch = matchesOuter.Cast<Match>()
                                                         .SkipWhile(m => m != match)
@@ -187,7 +200,7 @@ namespace Skyline_Project_PDFparser
 
                                         //Namespace generation
                                         NamespaceDeclarationSyntax ns = SyntaxFactory.NamespaceDeclaration(
-                                            SyntaxFactory.IdentifierName("AppearTV.X20.Api.Schema.Asi.V1_11." + match.Groups[2].Value + ".Command"))
+                                            SyntaxFactory.IdentifierName("AppearTV.X20.Api.Schema." + docName  + "." +"V"+ docVersion + "." + match.Groups[2].Value + ".Command"))
                                             .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>())
                                             .NormalizeWhitespace();
 
@@ -405,18 +418,17 @@ namespace Skyline_Project_PDFparser
                         string multilineComment = @"([A-Za-z]+( [A-Za-z]+)+)";
 
                         // Create the using directive syntax node
-                        var usingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("Newtonsoft.Json")).NormalizeWhitespace().WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
+                        var usingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("Newtonsoft.Json")).NormalizeWhitespace();
 
                         //Create a class
                         cls = SyntaxFactory.ClassDeclaration(ime)
                             .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
-                            .WithLeadingTrivia(SyntaxFactory.Comment($"/// <summary>{textBeforeStruct}</summary>\r"))
+                            .WithLeadingTrivia(SyntaxFactory.Comment($"/// <summary>{textBeforeStruct}///</summary>\r"))
                             .NormalizeWhitespace();
 
                         // Create constructors for the given class class
                         var jsonConstructor = SyntaxFactory.ConstructorDeclaration(ime)
                         .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword))
-                        .WithLeadingTrivia(SyntaxFactory.Comment($"/// <summary>\r\n\t\t/// Initializes a new instance of the <see cref=\"{ime}\"/> class.\r\n\t\t/// </summary>\r"))
                             .AddAttributeLists(
                                 SyntaxFactory.AttributeList(
                                     SyntaxFactory.SingletonSeparatedList(
@@ -425,8 +437,8 @@ namespace Skyline_Project_PDFparser
                                 )
                             )
 
-                            .WithBody(SyntaxFactory.Block())
-                            .NormalizeWhitespace();
+                            .WithBody(SyntaxFactory.Block()).WithLeadingTrivia(SyntaxFactory.Comment($"/// <summary>\r\n\t\t/// Initializes a new instance of the <see cref=\"{ime}\"/> class.\r\n\t\t/// </summary>\r"));
+                            
 
                         cls = cls.AddMembers(jsonConstructor).NormalizeWhitespace();
 
@@ -708,7 +720,7 @@ namespace Skyline_Project_PDFparser
                         .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PrivateKeyword)))
                         .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
                 )
-                .WithLeadingTrivia(SyntaxFactory.Comment($"/// <remarks>{comment}</remarks>\r"))
+
                 .AddAttributeLists(
                     SyntaxFactory.AttributeList(
                         SyntaxFactory.SingletonSeparatedList(
@@ -719,10 +731,8 @@ namespace Skyline_Project_PDFparser
                                 )
                         )
                     )
-                )
-                .NormalizeWhitespace()
-                .WithTrailingTrivia(SyntaxFactory.EndOfLine("\r\n"))
-                .WithLeadingTrivia(SyntaxFactory.EndOfLine("\r\n"));
+                ).WithLeadingTrivia(SyntaxFactory.Comment($"/// <remarks>{comment}</remarks>\r"));
+                
 
             cls = cls.AddMembers(property);
 
