@@ -685,23 +685,6 @@ namespace Skyline_Project_PDFparser
 
                     }
                 }
-
-                /*else 
-                 {
-                     //end of document (endIndex = -1)
-                     int numPages = pdfDoc.GetNumberOfPages();
-                     PdfPage lastPage = pdfDoc.GetLastPage();
-                     Rectangle pageSize = lastPage.GetPageSize();
-                     startIndex = pageContent[pdfDoc.GetNumberOfPages() - 1].IndexOf(startString) + startString.Length;
-                     endIndex = (int)pageSize.GetTop();
-
-                     if (startString.Contains("SeamlessStatus"))
-                     {
-                         if (startString != string.Empty) { }
-                     }
-
-                     string extractedText = pageContent[pdfDoc.GetNumberOfPages() - 1].Substring(startIndex, endIndex - startIndex).Trim();
-                 }*/
             }
 
         }
