@@ -92,7 +92,10 @@ namespace Skyline_Project_PDFparser
             {
                 docName = firstPage[0];
                 if (Regex.Match(firstPage[i], revision).Success)
+                {
                     docVersion = Regex.Match(firstPage[i], revision).Groups[1].Value;
+                    docVersion = docVersion.Replace('.', '_');
+                }
             }
 
             
@@ -357,12 +360,13 @@ namespace Skyline_Project_PDFparser
                         //Create a class
                         cls = SyntaxFactory.ClassDeclaration(ime)
                             .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword))
+                            .WithLeadingTrivia(SyntaxFactory.Comment($"/// <summary>{textBeforeEnum}\n /// </summary>\r"))
                             .NormalizeWhitespace();
 
                         // Create the enum
                         var optionsEnum = SyntaxFactory.EnumDeclaration("Options")
-                            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
-                            .WithLeadingTrivia(SyntaxFactory.Comment($"/// <summary>{textBeforeEnum}\n /// </summary>\r"));
+                            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
+                            
                             
 
                         // Add the members to the enum
