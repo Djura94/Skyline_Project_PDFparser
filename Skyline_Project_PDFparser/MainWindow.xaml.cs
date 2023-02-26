@@ -351,18 +351,6 @@ namespace Skyline_Project_PDFparser
                                 .FirstOrDefault();
                                 endString = nextMatch?.Value;
                             }
-                            if (item.Value.ToString() == matchesClass[matchesClass.Count - 1].Value.ToString())
-                            {
-                                int numberOfPages = pdfDoc.GetNumberOfPages();
-                                string lastPage = numberOfPages.ToString();
-                                string datePattern = @"\d{2}\/\d{2}\/\d{4}\s+" + lastPage;
-                                Regex footnote =new Regex(datePattern);
-                                Match footnoteMatch = footnote.Match(pageContent[pdfDoc.GetNumberOfPages()-1]);
-                                if(footnoteMatch.Success)
-                                {
-                                    endString = footnoteMatch.Value;
-                                }
-                            }
                             isFound = false;
                         }
                     }
