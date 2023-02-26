@@ -39,7 +39,6 @@ namespace Skyline_Project_PDFparser
         string generatedClass = @"\b(\d+)\.(\d+)\.(\d+)\s+(.*[a-zA-Z])\b";
         string revision = @"Revision\s*:\s*(\d+\.\d+)";
         string pattern = @"\d{2}\/\d{2}\/\d{4}\s+\d+";
-        string datePattern = @"\d{2}\/\d{2}\/\d{4}\s+";
         string specialCase = @"([A-Za-z0-9]+)\s+([A-Za-z]+)";
         string multilineComment = @"([A-Za-z]+( [A-Za-z]+)+)";
         #endregion
@@ -345,18 +344,25 @@ namespace Skyline_Project_PDFparser
                                 endString = endString + "\n";
 
                             if (startString.Substring(0, 3) != endString.Substring(0, 3))
-                            {//check response and request if would be a error here 
-
+                            {
                                 Match nextMatch = matchesOuter.Cast<Match>()
                                 .SkipWhile(m => m != match)
                                 .Skip(1)
                                 .FirstOrDefault();
                                 endString = nextMatch?.Value;
-                                if (item.Value == matchesClass[matchesClass.Count - 1].Value)
-                                    endString = datePattern.ToString() + pdfDoc.GetNumberOfPages();
-
                             }
-
+                            if (item.Value.ToString() == matchesClass[matchesClass.Count - 1].Value.ToString())
+                            {
+                                int numberOfPages = pdfDoc.GetNumberOfPages();
+                                string lastPage = numberOfPages.ToString();
+                                string datePattern = @"\d{2}\/\d{2}\/\d{4}\s+" + lastPage;
+                                Regex footnote =new Regex(datePattern);
+                                Match footnoteMatch = footnote.Match(pageContent[pdfDoc.GetNumberOfPages()-1]);
+                                if(footnoteMatch.Success)
+                                {
+                                    endString = footnoteMatch.Value;
+                                }
+                            }
                             isFound = false;
                         }
                     }
@@ -369,7 +375,7 @@ namespace Skyline_Project_PDFparser
                         if (!match2.Value.ToString().Contains(".Response") && !match2.Value.ToString().Contains(".Request"))
                         {
                             //Method that populates TypeReference files
-                            PopulateType(match2.Groups[4].Value);
+                            PopulateType(match2.Groups[4].Value,matchesClass);
                             File.WriteAllText(classFolderPath, ns.ToFullString());
                         }
                     }
@@ -379,8 +385,21 @@ namespace Skyline_Project_PDFparser
         } 
 
         //Populating different types of Type Reference files
-        private void PopulateType(string name)
+        private void PopulateType(string name, MatchCollection matchesClass)
         {
+            if (startString == matchesClass[matchesClass.Count - 1].Value.ToString()) //If statement for the case when it comes to the population of the last class of the pdf file
+            {
+                int numberOfPages = pdfDoc.GetNumberOfPages();
+                string lastPage = numberOfPages.ToString();
+                string datePattern = @"\d{2}\/\d{2}\/\d{4}\s+" + lastPage;
+                Regex footnote = new Regex(datePattern);
+                Match footnoteMatch = footnote.Match(pageContent[pdfDoc.GetNumberOfPages() - 1]);
+                if (footnoteMatch.Success)
+                {
+                    endString = footnoteMatch.Value;
+                }
+            }
+
             if (!startString.EndsWith("\n"))
                 startString = startString + "\n";
 
